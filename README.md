@@ -14,3 +14,14 @@ This project, Wildfire-Sentinel, focuses on the development and optimization of 
 ```bash
 pip install -r requirements.txt
 ```
+
+### 2. Run the API (First Terminal)
+
+```bash
+uvicorn src.api:app --reload --port 8000
+```
+
+### 3. Run Streamlit (Seconed Terminal)
+```bash
+streamlit run src/app.py
+```

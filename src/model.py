@@ -81,7 +81,7 @@ def compile_model(model, learning_rate=DEFAULT_LEARNING_RATE):
             "accuracy",
             keras.metrics.Precision(name="precision"),
             keras.metrics.Recall(name="recall"),
-            keras.metrics.F1Score(threshold=0.5, name="f1_score")
+            keras.metrics.F1Score(threshold=0.5, name="f1_score"),
             keras.metrics.AUC(name="auc")
         ]
     )
