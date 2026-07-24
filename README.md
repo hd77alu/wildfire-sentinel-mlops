@@ -6,3 +6,11 @@ This project, Wildfire-Sentinel, focuses on the development and optimization of 
 - Architectural Benchmarking: Compare custom Convolutional Neural Networks (CNNs) against pre-trained Transfer Learning architectures.
 - Model Optimization: Evaluate the impact of different hyper parameter tuning techniques on model generalization.
 - Reliability for Deployment: Achieve high recall, precision and AUC-ROC scores to ensure the system is reliable for real-world monitoring with minimal false alarms.
+
+## Set-up
+
+### 1. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```

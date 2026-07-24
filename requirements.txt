@@ -1,0 +1,16 @@
+# Core Deep Learning & Machine Learning
+tensorflow
+keras
+numpy
+pillow
+
+# API & Web Frameworks
+fastapi
+uvicorn
+streamlit
+python-multipart
+
+# Load Testing & Utilities
+locust
+pydantic
+requests
