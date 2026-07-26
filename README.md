@@ -85,12 +85,14 @@ docker-compose up --build -d
 ### 2. Verify running services:
 ```bash
 docker-compose ps
-Access Services:
+```
+### 3.Access Services:
+```bash
 Streamlit UI: http://localhost:8501
 FastAPI Docs: http://localhost:8000/docs
 ```
 
-### 3. Stop containers:
+### 4. Stop containers:
 ```bash
 docker-compose down
 ```
