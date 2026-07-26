@@ -1,4 +1,6 @@
+# --- run tests with command: python -m pytest tests/test_api.py -v ---
 import io
+import zipfile
 import pytest
 from PIL import Image
 from fastapi.testclient import TestClient
@@ -13,11 +15,25 @@ def client():
 
 
 def create_test_image_bytes(format: str = "JPEG", size: tuple = (224, 224), color: tuple = (255, 0, 0)) -> bytes:
+    """Helper utility to generate raw bytes for an image file in memory."""
     img = Image.new("RGB", size, color=color)
     buf = io.BytesIO()
     img.save(buf, format=format)
     return buf.getvalue()
 
+
+def create_test_zip_bytes(filenames=["test_1.jpg", "test_2.png"]) -> bytes:
+    """Helper utility to generate raw bytes for a ZIP archive containing images in memory."""
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for fname in filenames:
+            img_format = "PNG" if fname.endswith(".png") else "JPEG"
+            img_data = create_test_image_bytes(format=img_format)
+            zf.writestr(fname, img_data)
+    return zip_buf.getvalue()
+
+
+# --- General & Health Checks ---
 
 def test_root_endpoint(client):
     response = client.get("/")
@@ -32,6 +48,8 @@ def test_health_check_endpoint(client):
     data = response.json()
     assert data["status"] == "healthy"
 
+
+# --- Single Image Inference Tests ---
 
 def test_predict_single_valid_image(client):
     img_bytes = create_test_image_bytes(format="JPEG")
@@ -64,6 +82,8 @@ def test_predict_single_payload_too_large(client):
     assert response.status_code == 413
 
 
+# --- Batch Image Inference Tests ---
+
 def test_predict_batch_images(client):
     img1 = create_test_image_bytes(format="JPEG", color=(255, 0, 0))
     img2 = create_test_image_bytes(format="PNG", color=(0, 255, 0))
@@ -79,6 +99,54 @@ def test_predict_batch_images(client):
     data = response.json()
     assert data["total_images"] == 2
 
+
+# --- Retraining Dataset Ingestion & ZIP Extraction Tests ---
+
+def test_upload_retrain_data_direct_images(client):
+    img_bytes = create_test_image_bytes(format="JPEG")
+    files = [("files", ("tile_01.jpg", img_bytes, "image/jpeg"))]
+    
+    response = client.post("/upload-retrain-data?label=wildfire", files=files)
+    assert response.status_code == 200
+    assert "message" in response.json()
+
+
+def test_upload_retrain_data_zip_extraction(client):
+    zip_bytes = create_test_zip_bytes(filenames=["wildfire_tile_1.jpg", "wildfire_tile_2.png"])
+    files = [("files", ("dataset_batch.zip", zip_bytes, "application/zip"))]
+    
+    response = client.post("/upload-retrain-data?label=wildfire", files=files)
+    assert response.status_code == 200
+    data = response.json()
+    assert "message" in data
+
+
+def test_upload_retrain_data_invalid_label(client):
+    img_bytes = create_test_image_bytes(format="JPEG")
+    files = [("files", ("tile_01.jpg", img_bytes, "image/jpeg"))]
+    
+    response = client.post("/upload-retrain-data?label=invalid_class", files=files)
+    assert response.status_code in [400, 422]
+
+
+def test_upload_retrain_data_corrupt_zip(client):
+    corrupt_zip_bytes = b"PK\x03\x04CorruptDataHereNotAZipArchive"
+    files = [("files", ("corrupt.zip", corrupt_zip_bytes, "application/zip"))]
+    
+    response = client.post("/upload-retrain-data?label=nowildfire", files=files)
+    assert response.status_code in [400, 422, 500]
+
+
+# --- Retraining Execution Endpoint Tests ---
+
+def test_trigger_retraining_pipeline(client):
+    response = client.post("/trigger-retraining")
+    assert response.status_code == 200
+    data = response.json()
+    assert "status" in data or "message" in data
+
+
+# --- CORS Middleware Security Tests ---
 
 def test_cors_allowed_origin(client):
     headers = {

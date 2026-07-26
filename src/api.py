@@ -1,19 +1,24 @@
 import io
 import os
+import zipfile
 from contextlib import asynccontextmanager
-from typing import List
+from typing import List, Optional
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
 
+from src.database import init_db, log_sample
+from src.retrain import preprocess_and_retrain
 from src.prediction import WildfirePredictor
 
-MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB payload limit
-ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/jpg"}
+MAX_INFERENCE_FILE_SIZE = 10 * 1024 * 1024   # 10 MB limit for inference images
+MAX_RETRAIN_PAYLOAD_SIZE = 100 * 1024 * 1024 # 100 MB limit for retraining ZIP/bulk uploads
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/jpg"}
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
-predictor: WildfirePredictor = None
+predictor: Optional[WildfirePredictor] = None
 
 
 @asynccontextmanager
@@ -21,10 +26,11 @@ async def lifespan(app: FastAPI):
     global predictor
     print("Initializing Wildfire Sentinel API...")
     try:
+        init_db()
         predictor = WildfirePredictor()
         print("WildfirePredictor loaded successfully.\n")
     except Exception as e:
-        print(f"Failed to load WildfirePredictor model: {e}")
+        print(f"Failed to initialize API resources: {e}")
         raise e
     yield
     print("Shutting down Wildfire Sentinel API...")
@@ -32,7 +38,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Wildfire Sentinel API",
-    description="Secure REST API for real-time wildfire detection from satellite and aerial imagery.",
+    description="Secure REST API for real-time wildfire detection and model retraining.",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -71,18 +77,20 @@ class BatchPredictionResponse(BaseModel):
 
 # --- Payload Validation Helper ---
 async def validate_uploaded_image(file: UploadFile) -> Image.Image:
-    if file.content_type not in ALLOWED_CONTENT_TYPES:
+    filename = file.filename or "uploaded_image"
+
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"Unsupported file type '{file.content_type}'. Allowed types: {list(ALLOWED_CONTENT_TYPES)}",
+            detail=f"Unsupported file type '{file.content_type}'. Allowed types: {list(ALLOWED_IMAGE_TYPES)}",
         )
 
     contents = await file.read()
 
-    if len(contents) > MAX_FILE_SIZE_BYTES:
+    if len(contents) > MAX_INFERENCE_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail=f"File '{file.filename}' exceeds maximum allowed payload limit of 10MB.",
+            detail=f"File '{filename}' exceeds maximum allowed payload limit of 10MB.",
         )
 
     try:
@@ -93,7 +101,7 @@ async def validate_uploaded_image(file: UploadFile) -> Image.Image:
     except UnidentifiedImageError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Corrupted or invalid image file: '{file.filename}'",
+            detail=f"Corrupted or invalid image file: '{filename}'",
         )
     except Exception as e:
         raise HTTPException(
@@ -137,6 +145,13 @@ async def predict_single(
         description="Confidence threshold for wildfire classification.",
     ),
 ):
+    if predictor is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Predictor is not initialized.",
+        )
+
+    filename = file.filename or "uploaded_image"
     image = await validate_uploaded_image(file)
 
     try:
@@ -146,7 +161,7 @@ async def predict_single(
         confidence = result.get("confidence", 0.0)
 
         return PredictionResult(
-            filename=file.filename,
+            filename=filename,
             predicted_class=pred_class,
             confidence=confidence,
         )
@@ -167,6 +182,12 @@ async def predict_batch(
         description="Confidence threshold for batch wildfire classification.",
     ),
 ):
+    if predictor is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Predictor is not initialized.",
+        )
+
     if not files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -175,6 +196,7 @@ async def predict_batch(
 
     results = []
     for file in files:
+        filename = file.filename or "uploaded_image"
         try:
             image = await validate_uploaded_image(file)
             res = predictor.predict_image(image, threshold=threshold)
@@ -184,7 +206,7 @@ async def predict_batch(
 
             results.append(
                 PredictionResult(
-                    filename=file.filename,
+                    filename=filename,
                     predicted_class=pred_class,
                     confidence=confidence,
                 )
@@ -198,3 +220,84 @@ async def predict_batch(
         total_images=len(results),
         predictions=results,
     )
+
+
+ALLOWED_LABELS = {"wildfire", "no_wildfire"}
+@app.post("/upload-retrain-data")
+async def upload_retrain_data(
+    files: list[UploadFile] = File(...),
+    label: str = Query(..., description="Target class label for retraining data")
+):
+    if label not in ALLOWED_LABELS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid label '{label}'. Allowed labels are: {', '.join(ALLOWED_LABELS)}"
+        )
+    if not files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No files provided for retraining upload.",
+        )
+
+    raw_dir = "database/retrain_raw"
+    os.makedirs(raw_dir, exist_ok=True)
+    saved_count = 0
+
+    for file in files:
+        filename = file.filename or "uploaded_file"
+        contents = await file.read()
+
+        if len(contents) > MAX_RETRAIN_PAYLOAD_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"File '{filename}' exceeds maximum allowed payload limit of 100MB.",
+            )
+
+        # Handle ZIP Archive Extraction
+        if filename.endswith(".zip") or file.content_type in {"application/zip", "application/x-zip-compressed"}:
+            try:
+                with zipfile.ZipFile(io.BytesIO(contents)) as z:
+                    for zip_info in z.infolist():
+                        if zip_info.is_dir() or zip_info.filename.startswith("__MACOSX"):
+                            continue
+
+                        ext = os.path.splitext(zip_info.filename)[1].lower()
+                        if ext in ALLOWED_IMAGE_EXTENSIONS:
+                            extracted_name = os.path.basename(zip_info.filename)
+                            file_path = os.path.join(raw_dir, extracted_name)
+
+                            with open(file_path, "wb") as f:
+                                f.write(z.read(zip_info.filename))
+
+                            log_sample(filename=extracted_name, filepath=file_path, label=label)
+                            saved_count += 1
+
+            except zipfile.BadZipFile:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Corrupted or invalid ZIP archive: '{filename}'",
+                )
+
+        # Handle Individual Image Files
+        elif file.content_type in ALLOWED_IMAGE_TYPES or os.path.splitext(filename)[1].lower() in ALLOWED_IMAGE_EXTENSIONS:
+            file_path = os.path.join(raw_dir, filename)
+            with open(file_path, "wb") as f:
+                f.write(contents)
+
+            log_sample(filename=filename, filepath=file_path, label=label)
+            saved_count += 1
+
+    return {
+        "message": f"Successfully extracted and indexed {saved_count} image samples for retraining.",
+        "label_assigned": label,
+        "destination": raw_dir,
+    }
+
+
+@app.post("/trigger-retraining", tags=["Retraining"])
+async def trigger_retraining(background_tasks: BackgroundTasks):
+    background_tasks.add_task(preprocess_and_retrain)
+    return {
+        "status": "queued",
+        "message": "Model retraining pipeline triggered successfully in the background.",
+    }

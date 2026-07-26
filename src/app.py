@@ -38,13 +38,13 @@ threshold = st.sidebar.slider(
 )
 
 # --- Main App Tabs ---
-tab1, tab2 = st.tabs(["Single Image", "Batch Processing"])
+tab1, tab2, tab3 = st.tabs(["Single Image", "Batch Processing", "Model Retraining"])
 
 # TAB 1: Single Image
 with tab1:
     st.subheader("Single Image Analysis")
     uploaded_file = st.file_uploader(
-        "Upload a satellite or aerial image file (.jpg, .jpeg, .png)",
+        "Upload a satellite or aerial image file (.jpg, .png), max size 10MB.",
         type=["jpg", "jpeg", "png"],
         key="single_uploader",
     )
@@ -94,7 +94,7 @@ with tab1:
 with tab2:
     st.subheader("Batch Image Analysis")
     batch_files = st.file_uploader(
-        "Upload multiple image files for rapid screening",
+        "Upload multiple image files for rapid screening (.jpg, .png), max size 10MB.",
         type=["jpg", "jpeg", "png"],
         accept_multiple_files=True,
         key="batch_uploader",
@@ -141,3 +141,63 @@ with tab2:
 
                 except Exception as e:
                     st.error(f"Batch request failed: {str(e)}")
+
+# TAB 3: Model Retraining
+with tab3:
+    st.subheader("Dataset Ingestion & Model Fine-Tuning")
+    st.caption("Upload raw satellite image tiles (.jpg, .png up to 10MB) or a compressed dataset archive (.zip up to 100MB).")
+
+    col_up1, col_up2 = st.columns([2, 1])
+
+    with col_up1:
+        retrain_files = st.file_uploader(
+            "Upload Bulk Retraining Images or ZIP Archive",
+            type=["jpg", "jpeg", "png", "zip"],
+            accept_multiple_files=True,
+            key="retrain_uploader",
+            help="Accepted formats: JPG, PNG, or ZIP archives containing image tiles."
+        )
+
+    with col_up2:
+        label_selection = st.selectbox(
+            "Target Class Label",
+            ["wildfire", "no_wildfire"],
+            help="Ground truth category for the uploaded dataset samples."
+        )
+
+        if st.button("Upload to Database", type="primary"):
+            if retrain_files:
+                with st.spinner("Extracting and storing dataset samples..."):
+                    payload = [
+                        ("files", (f.name, f.getvalue(), f.type or "application/octet-stream"))
+                        for f in retrain_files
+                    ]
+                    try:
+                        res = requests.post(
+                            f"{API_BASE_URL}/upload-retrain-data?label={label_selection}",
+                            files=payload
+                        )
+                        if res.status_code == 200:
+                            data = res.json()
+                            st.success(data["message"])
+                        else:
+                            st.error(f"Upload failed (Status {res.status_code}): {res.text}")
+                    except Exception as e:
+                        st.error(f"Could not connect to API backend: {e}")
+            else:
+                st.warning("Please select at least one file or ZIP archive to upload.")
+
+    st.divider()
+    st.subheader("Trigger Pipeline Execution")
+    st.caption("Preprocesses new database entries and unfreezes pretrained transfer learning layers.")
+
+    if st.button("Start Retraining Pipeline"):
+        with st.spinner("Initiating background retraining worker..."):
+            try:
+                res = requests.post(f"{API_BASE_URL}/trigger-retraining")
+                if res.status_code == 200:
+                    st.info("Retraining job queued successfully in the background.")
+                else:
+                    st.error("Failed to trigger retraining process.")
+            except Exception as e:
+                st.error(f"Could not connect to API backend: {e}")
