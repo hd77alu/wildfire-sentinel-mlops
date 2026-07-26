@@ -1,6 +1,6 @@
 # Core Deep Learning & Machine Learning
 tensorflow
-keras
+keras==3.15.0
 numpy
 pillow
 
