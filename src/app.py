@@ -38,10 +38,78 @@ threshold = st.sidebar.slider(
 )
 
 # --- Main App Tabs ---
-tab1, tab2, tab3 = st.tabs(["Single Image", "Batch Processing", "Model Retraining"])
+tab1, tab2, tab3, tab4 = st.tabs(["Dataset Insights", "Single Image Analysis", "Batch Processing", "Model Retraining"])
 
-# TAB 1: Single Image
+# --- TAB 1: DATASET INSIGHTS ---
 with tab1:
+    # CSS for image alignment
+    st.markdown(
+        """
+        <style>
+        [data-testid="stImage"] img {
+            height: 280px;
+            object-fit: contain;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.header("Decoding the Visual Signatures of Wildfire Detection")
+    st.caption(
+        "An analysis exploring the spectral, thermal, and"
+        " spatial features driving our MobileNet model."
+    )
+    st.markdown("---")
+    
+    # Two-Column Grid for Visualizations
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("1. Active Flame Mask Ratio")
+        st.image("assets/hsv_fire_ratio.png", width='stretch')
+        st.info("""
+        **Interpretation:**
+        Isolating flame pixels via HSV thresholding shows distinct positive spikes in wildfire samples, providing strong activation signals for CNNs.
+        """)
+
+        st.subheader("3. Red Dominance Index")
+        st.image("assets/red_dominance.png", width='stretch')
+        st.info("""
+        **Interpretation:**
+        The $R / (G + B)$ ratio shows a clear class separation, shifting rightward for wildfires due to intense flame and smoke illumination.
+        """)
+
+    with col2:
+        st.subheader("2. Edge Variance (Smoke Blur)")
+        st.image("assets/edge_variance.png", width='stretch')
+        st.info("""
+        **Interpretation:**
+        Lower Laplacian variance in wildfire frames proves dense smoke plumes obscure fine canopy details, serving as a key visual marker.
+        """)
+
+        st.subheader("4. Spectral RGB Distribution")
+        st.image("assets/spectral_rgb_distribution.png", width='stretch')
+        st.info("""
+        **Interpretation:**
+        Wildfires show elevated multi-channel intensity, driven by bright flame emissions and reflective smoke plumes.
+        """)
+
+    # Conclusion Section
+    st.markdown("### Conclusion: What Story Does Our Dataset Tell?")
+    st.info("""
+        Wildfire classification relies on two main visual indicators: **chromatic shift** and **spatial texture disruption**. 
+        
+        * **Thermal & Color Markers:** Active combustion shifts light emission toward the warm end of the optical spectrum. Non-fire images display balanced vegetation tones, whereas wildfire imagery is marked by high red-spectrum saturation and localized flame pixels.
+        * **Atmospheric Smoke Masking:** Dense smoke plumes smooth out fine spatial details (leaves, canopy lines, terrain), reducing image edge variance. 
+        
+        *Together, these patterns confirm that our model leverages both color intensity shifts and texture-smoothing features to accurately classify wildfire threats.*
+        """)
+    
+    st.markdown("---")
+
+# TAB 2: Single Image
+with tab2:
     st.subheader("Single Image Analysis")
     uploaded_file = st.file_uploader(
         "Upload a satellite or aerial image file (.jpg, .png), max size 10MB.",
@@ -53,7 +121,7 @@ with tab1:
         col1, col2 = st.columns([1, 1])
 
         with col1:
-            st.image(uploaded_file, caption="Source Image", use_container_width=True)
+            st.image(uploaded_file, caption="Source Image", width='stretch')
 
         with col2:
             st.markdown("### Model Assessment")
@@ -90,9 +158,9 @@ with tab1:
                         st.error(f"Connection failed: {str(e)}")
 
 
-# TAB 2: Batch Processing
-with tab2:
-    st.subheader("Batch Image Analysis")
+# TAB 3: Batch Processing
+with tab3:
+    st.subheader("Batch Processing")
     batch_files = st.file_uploader(
         "Upload multiple image files for rapid screening (.jpg, .png), max size 10MB.",
         type=["jpg", "jpeg", "png"],
@@ -128,7 +196,7 @@ with tab2:
                                 matching_file = next((f for f in batch_files if f.name == item["filename"]), None)
                                 if matching_file:
                                     matching_file.seek(0)
-                                    st.image(matching_file, use_container_width=True)
+                                    st.image(matching_file, width='stretch')
 
                                 is_fire = item["predicted_class"].lower() in ["wildfire", "fire"]
                                 badge = "WILDFIRE DETECTED" if is_fire else "CLEAR"
@@ -142,8 +210,8 @@ with tab2:
                 except Exception as e:
                     st.error(f"Batch request failed: {str(e)}")
 
-# TAB 3: Model Retraining
-with tab3:
+# TAB 4: Model Retraining
+with tab4:
     st.subheader("Dataset Ingestion & Model Fine-Tuning")
     st.caption("Upload raw satellite image tiles (.jpg, .png up to 10MB) or a compressed dataset archive (.zip up to 100MB).")
 
