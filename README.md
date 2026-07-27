@@ -12,36 +12,26 @@ This project, Wildfire-Sentinel, focuses on the development and optimization of 
 ```
 wildfire-sentinel-mlops/
 │
-├── .streamlit/                             # 
-├── assets/                                 # 
-├── a-video-demo/                           #
-├── database/                               #
-├── models/                                 # 
-├── notebook/                               #
+├── .streamlit/                              
+├── assets/                                  
+├── database/                               
+├── models/                                  
 │ 
-├── src/                                    # 
-│   ├── api.py                              #
-│   └── app.py                              #
-│   └── database.py                         #
-│   └── prediction.py                       #
-│   └── preprocessing.py                    #
-│   └── retrain.py                          #
-│ 
-├── tests/                                  #  
+├── src/                                     
+│   ├── api.py                              
+│   └── app.py                              
+│   └── database.py                         
+│   └── prediction.py                       
+│   └── preprocessing.py                    
+│   └── retrain.py                            
 │
-├── wildfire-dataset/                       # 
-│   ├── test                                
-│   └── train                               
-│   └── valid                               
-│
-└── .dockerignore                           #
-└── .gitattributes                          #
-└── .gitignore                              #
-└── docker-compose.yml                      #
-└── Dockerfile.api                          #
-└── Dockerfile.ui                           #
-└── README.md                               #
-└── requirements.txt                        #
+└── .dockerignore                           
+└── .gitattributes                          
+└── .gitignore                              
+└── Dockerfile                              
+└── README.md                               
+└── requirements.txt                        
+└── start.sh                                
 ```
 
 ## Set-up
