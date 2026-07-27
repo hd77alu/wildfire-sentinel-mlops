@@ -18,14 +18,12 @@ wildfire-sentinel-mlops/
 │   └── prediction.py                       
 │   └── preprocessing.py                    
 │   └── retrain.py                            
-│
-└── .dockerignore                           
+│                         
 └── .gitattributes                          
-└── .gitignore                              
-└── Dockerfile                              
+└── .gitignore
+└── pyproject.toml                                                          
 └── README.md                               
-└── requirements.txt                        
-└── start.sh                                
+└── requirements.txt                                                     
 ```
 
 ## Set-up
