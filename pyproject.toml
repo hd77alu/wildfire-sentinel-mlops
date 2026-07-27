@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wildfire-sentinel-api"
+version = "0.1.0"
+description = "FastAPI backend for Wildfire Sentinel MLOps pipeline"
+requires-python = "==3.12"
+dependencies = [
+    "fastapi[standard]",
+    "fastapi",
+    "uvicorn",
+    "tensorflow",
+    "keras>=3.15.0",
+    "pillow",
+    "numpy",
+    "python-multipart",
+    "requests"
+]
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.fastapi]
+entrypoint = "src.api:app"

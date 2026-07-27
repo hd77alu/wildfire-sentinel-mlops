@@ -4,7 +4,7 @@ import streamlit as st
 from PIL import Image
 
 # API Endpoint Configuration
-API_BASE_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
+API_BASE_URL = os.getenv("API_URL", "https://wildfire-sentinel-api-75b7885f.fastapicloud.dev")
 
 st.set_page_config(
     page_title="Wildfire Sentinel - Early Detection System",
