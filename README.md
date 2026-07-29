@@ -2,7 +2,7 @@
 ## Project Overview
 This project, Wildfire-Sentinel, is a scalable, containerized MLOps pipeline for real-time wildfire detection from satellite imagery, built with FastAPI, Streamlit, MobileNet, and Docker Compose.
 
-- You can access demo video from [here.](https://somup.com/cOiUVmVngAd)
+- You can access the demo video from [here.](https://somup.com/cOiUVmVngAd)
 
 ## Table of Content
 
