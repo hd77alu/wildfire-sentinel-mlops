@@ -1,6 +1,8 @@
 # Wildfire-Sentinel-MLOps
 ## Project Overview
-This project, Wildfire-Sentinel, is a scalable, containerized MLOps pipeline for real-time wildfire detection from aerial imagery, built with FastAPI, Streamlit, MobileNet, and Docker Compose.
+This project, Wildfire-Sentinel, is a scalable, containerized MLOps pipeline for real-time wildfire detection from satellite imagery, built with FastAPI, Streamlit, MobileNet, and Docker Compose.
+
+- You can access demo video from [here.](https://somup.com/cOiUVmVngAd)
 
 ## Table of Content
 
@@ -137,6 +139,7 @@ docker-compose down
 ```
 
 ## Model Evaluation Metrics Results
+[![Open Notebook In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hd77alu/wildfire-sentinel-mlops/blob/main/notebook/wildfire_sentinel.ipynb)
 
 The best model (**MobileNetV2**) was evaluated on the test dataset, achieving strong classification performance across all key metrics:
 
